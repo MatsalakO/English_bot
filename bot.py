@@ -1,8 +1,6 @@
 import requests
 
 token = "5730946361:AAFymZBaZ9FtkUi2b4Z1m9ftJQWLz8LGZwI"
-root_url = "https://api.telegram.org/bot"
-
 ok_codes = 200, 201, 202, 203, 204
 
 user = {"username" : "Alex",
@@ -29,18 +27,6 @@ sentences = [
 	"level": 2}
 ]
 
-def fill_matched_sentences(message, user, sentences)->list:
-	matched_sentences = []
-	for sentence in sentences:
-		user_lvl = user.get("level")
-		sentences_lvl = sentence.get("level")
-		sentences_txt = sentence.get("text")
-		if  sentences_lvl == user_lvl:
-			if message in sentences_txt:
-				matched_sentences.append(sentences_txt)
-	return matched_sentences
-
-
 def create_result_message(matched_sentences:list) -> str:
 	result_message = ""
 	if not matched_sentences:
@@ -52,47 +38,73 @@ def create_result_message(matched_sentences:list) -> str:
 				result_message += x + "\n...\n"
 	return result_message
 
-def send_message(token, chat_id, message):
-	url = f"{root_url}{token}/sendMessage"
-	res = requests.post(url, data={'chat_id': chat_id, "text": message})
-	if res.status_code in ok_codes:
-		return True
-	else:
-		print(f"Request failed with status_code {res.status_code}")
-		return False
+def fill_matched_sentences(message, user, sentences)->list:
+	matched_sentences = []
+	for sentence in sentences:
+		user_lvl = user.get("level")
+		sentences_lvl = sentence.get("level")
+		sentences_txt = sentence.get("text")
+		if  sentences_lvl == user_lvl:
+			if message in sentences_txt:
+				matched_sentences.append(sentences_txt)
+	return matched_sentences
 
-def get_updates(token):
-	url = f"{root_url}{token}/getUpdates"
-	res = requests.get(url)
-	if res.status_code in ok_codes:
-		updates = res.json()
-		return updates
+class EnglishBot:
+	root_url = "https://api.telegram.org/bot"
 
-def process_message(message:str)->str:
-	""" обрабтывает входящее сообщение и выдает ответ, который будет отправлен юзеру
-	"""
-	#<CODE HERE>
-	if message[0] == '/':
-		message = 'This is command'
-	if isinstance(message, str):
-		matched_sentences = fill_matched_sentences(message, user, sentences)
-		message = create_result_message(matched_sentences)
-	 
-	return message
+	def __init__ (self, token):
+		self.token = token
 
-updates = get_updates(token)
+	def get_updates(self):
+		url = f"{self.root_url}{self.token}/getUpdates"
+		res = requests.get(url)
+		if res.status_code in ok_codes:
+			updates = res.json()
+			return updates
 
-last_message_id = 0
-while True:
-	updates = get_updates(token)
-	last_message = updates["result"][-1]	
-	message_id = last_message["message"]["message_id"]
+	def send_message(self, chat_id, message):
+		url = f"{self.root_url}{self.token}/sendMessage"
+		res = requests.post(url, data={'chat_id': chat_id, "text": message})
+		if res.status_code in ok_codes:
+			return True
+		else:
+			print(f"Request failed with status_code {res.status_code}")
+			return False
+
+	def process_message(self, 	message:str)->str:
+	# """ обрабтывает входящее сообщение и выдает ответ, который будет отправлен юзеру
+	# """
+	# #<CODE HERE>
+		if message[0] == '/':
+			message = 'This is command'
+		if isinstance(message, str):
+			matched_sentences = fill_matched_sentences(message, user, sentences)
+			message = create_result_message(matched_sentences)
+		return message
+
+	def pooling(self):
+		last_message_id = 0
+		while True:
+			updates = self.get_updates()
+			last_message = updates["result"][-1]	
+			message_id = last_message["message"]["message_id"]
+			last_message_text = last_message["message"]["text"]
+			chat_id = last_message["message"]["chat"]["id"]	
+			
+			if message_id > last_message_id:
+				message_to_user = self.process_message(last_message_text)
+				self.send_message(chat_id, message_to_user)
+				last_message_id = message_id
 	
-	last_message_text = last_message["message"]["text"]
-	chat_id = last_message["message"]["chat"]["id"]	
-	
-	if message_id > last_message_id:
-		message_to_user = process_message(last_message_text)
-		send_message(token, chat_id, message_to_user)
-		last_message_id = message_id
-	
+bot = EnglishBot(token)
+bot.pooling()
+
+
+
+
+
+
+
+
+# updates = get_updates(token)
+
